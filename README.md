@@ -1,56 +1,44 @@
 # clj-toml
 
-clj-toml is [TOML](https://github.com/mojombo/toml) for Clojure. TOML is Tom's Obvious, Minimal Language. 
+clj-toml is [TOML](https://github.com/vmfhrmfoaj/clj-toml) for Clojure. TOML is Tom's Obvious, Minimal Language. 
 
 > TOML is like INI, only better (Tom Preston-Werner)
 
-  clj-toml uses [Instaparse](https://github.com/Engelberg/instaparse) for parsing. Instaparse does all the heavy lifting, we're just sitting pretty.
-
-  clj-toml comes with a decent [collection of tests](https://github.com/lantiga/clj-toml/blob/master/test/clj_toml/core_test.clj). It successfully parses the TOML [hard example](https://github.com/mojombo/toml/blob/master/tests/hard_example.toml). Easy peasy.
-
-  Supported TOML version: [v0.4.0](https://github.com/toml-lang/toml/blob/master/versions/en/toml-v0.4.0.md)
+clj-toml uses [Instaparse](https://github.com/Engelberg/instaparse) for parsing.
+Instaparse does all the heavy lifting, we're just sitting pretty.  
+Currently clj-toml support TOML [v1.0.0](https://toml.io/en/v1.0.0).
 
 ## Usage
 
-  Work is underway towards a TOML 0.4.0-compliant release. Use the 0.3.1 release (TOML 0.1.0-compliant) in the meantime:
+Work is underway towards a TOML 0.4.0-compliant release. Use the 0.3.1 release (TOML 0.1.0-compliant) in the meantime:
 
-  Leiningen:
-
+Leiningen:
   ```clojure
-  [clj-toml "0.3.1"]
+  [clj-toml "1.0.0"]
   ```
 
-  Test:
-
+Test:
   ```clojure
   lein test
   ```
 
-  Use:
-
+Use:
   ```clojure
   (use 'clj-toml.core)
 
-  (parse-string "
+  (parse-toml "
    title = \"TOML\"
    [Foo]
    bar=[1,2,3]")
   ;; {"title" "TOML" "foo" {"bar" [1 2 3]}}
+
+  (meta (parse-toml "
+   title = \"TOML\"
+   [Foo]
+   bar=[1,2,3]"))
+  ;; {...}
   ```
-
-## TODO
-
-  The parser is pretty solid (thanks to Instaparse) and complete. 
-
-  In a way it implements a superset of TOML, since it successfully parses
-
-  * non-homogeneous arrays
-  * TOML with duplicate keys
-
-  As the TOML specification stabilizes, we'll raise errors according to specification.
 
 ## License
 
-  Copyright © 2013-2015 Luca Antiga.
-
-  Distributed under the Eclipse Public License, the same as Clojure.
+Copyright © 2022 Jinseop Kim.
