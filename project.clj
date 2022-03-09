@@ -1,4 +1,4 @@
-(defproject vmfhrmfoaj/clj-toml "1.0.0-0.1"
+(defproject com.github.vmfhrmfoaj/clj-toml "1.0.0-0.1"
   :description "TOML for Clojure"
   :url "https://github.com/vmfhrmfoaj/clj-toml"
   :author "Jinseop Kim"
