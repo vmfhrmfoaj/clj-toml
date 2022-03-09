@@ -12,9 +12,20 @@ Instaparse does all the heavy lifting, we're just sitting pretty.
 
 ## Usage
 
-Currently `clj-toml` v1.0.0 has not been released yet.
-You can install `clj-toml` locally by using `lein install` command.
+[![Clojars Project](https://img.shields.io/clojars/v/com.github.vmfhrmfoaj/clj-toml.svg)](https://clojars.org/com.github.vmfhrmfoaj/clj-toml)
 
+Add the following line to your leiningen dependencies:
+```clojure
+[com.github.vmfhrmfoaj/clj-toml "1.0.0-0.1"]
+```
+
+Require `clj-toml` in your namespace header:
+```clojure
+(ns example.core
+  (:require [clj-toml.core :as toml]))
+```
+
+REPL:
 ```clojure
 #_user> (use 'clj-toml.core)
 ;;=> nil
@@ -44,9 +55,9 @@ bar=[1,2,3]")
 ### Version
 
 ```
-x.x.x-z.z < patch number
+x.x.x-z.z < z.z: patch number
 ^^^^^
-TOML version
+x.x.x: TOML version
 ```
 
 
