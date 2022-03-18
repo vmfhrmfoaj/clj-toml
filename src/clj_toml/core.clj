@@ -258,11 +258,11 @@ array-table-close = ws %x5D.5D  ; ]] Double right square bracket
 <DIGIT> = %x30-39 ; 0-9
 <HEXDIG> = DIGIT / \"A\" / \"B\" / \"C\" / \"D\" / \"E\" / \"F\"")
 
-(def toml-parser
-  "Parser for TOML syntax.
+(def im-data
+  "Convert the input string to intermediate data (by using instaparse).
 
   Example:
-   (toml-parser \"...\")"
+   (im-data \"...\")"
   (insta/parser toml-grammar :input-format :abnf))
 
 (let [tb-key
@@ -409,11 +409,11 @@ array-table-close = ws %x5D.5D  ; ]] Double right square bracket
           :time-delim (constantly "T")
           :toml merge-exps
           :true (constantly true)}]
-  (defn toml-transfrom
-    "Transform parsed data to Clojure associative structure.
+  (defn im-data->map
+    "Transform intermidate data to Clojure associative structure.
 
   Example:
-   (toml-transfrom [:toml ...])"
+   (im-data->map [:toml ...])"
     [tree]
     (when-let [res (insta/transform tm tree)]
       (vary-meta res #(-> % (dissoc ::gll/start-index) (dissoc ::gll/end-index))))))
@@ -424,9 +424,9 @@ array-table-close = ws %x5D.5D  ; ]] Double right square bracket
   Example:
    (parse-toml \"...\")"
   [input]
-  (let [res (toml-parser input)]
+  (let [res (im-data input)]
     (if-not (insta/failure? res)
-      (toml-transfrom res)
+      (im-data->map res)
       (let [{:keys [text] :as err} (insta/get-failure res)]
         (throw (ex-info (str "invalid syntax: '" text "'")
                         (assoc err :input input)))))))
