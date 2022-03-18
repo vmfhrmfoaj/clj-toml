@@ -259,7 +259,10 @@ array-table-close = ws %x5D.5D  ; ]] Double right square bracket
 <HEXDIG> = DIGIT / \"A\" / \"B\" / \"C\" / \"D\" / \"E\" / \"F\"")
 
 (def toml-parser
-  "Parser for TOML syntax."
+  "Parser for TOML syntax.
+
+  Example:
+   (toml-parser \"...\")"
   (insta/parser toml-grammar :input-format :abnf))
 
 (let [tb-key
@@ -314,19 +317,26 @@ array-table-close = ws %x5D.5D  ; ]] Double right square bracket
                        tb-ks
                        arr-info])
                   :array-table
-                  , (let [existing? (get-in arr-info ks)
-                          arr-info (update-in arr-info ks #(if % {::idx (inc (::idx %))} {::idx 0}))
+                  , (let [initialized? (get-in arr-info ks)
                           tb-ks (tb-key arr-info ks)
-                          tb (not-empty (get-in res tb-ks))]
-                      [(if existing?
-                         (assoc-in res tb-ks {})
-                         (assoc-in res (drop-last tb-ks) []))
-                       (assoc-in md tb-ks (cond-> {::start start-index
-                                                   ::end   end-index}
-                                            tb (assoc ::warning (str "replaced a table decleared at "
-                                                                     (get-in md (concat tb-ks [::start]))
-                                                                     " position"))))
-                       tb-ks
+                          warn-msg (when (and (not initialized?) (not-empty (get-in res tb-ks)))
+                                     (str "replaced a table decleared at "
+                                          (or (get-in md (concat tb-ks [::start]))
+                                              (->> (get-in md tb-ks)
+                                                   (tree-seq map? vals)
+                                                   (filter number?)
+                                                   (apply max)))
+                                          " position"))
+                          arr-info (update-in arr-info ks #(if % {::idx (inc (::idx %))} {::idx 0}))
+                          arr-tb-ks (tb-key arr-info ks)]
+                      [(if initialized?
+                         (assoc-in res arr-tb-ks {})
+                         (assoc-in res (drop-last arr-tb-ks) []))
+                       (assoc-in (cond-> md warn-msg (assoc-in tb-ks {})) arr-tb-ks
+                                 (cond-> {::start start-index
+                                          ::end   end-index}
+                                   warn-msg (assoc ::warning warn-msg)))
+                       arr-tb-ks
                        arr-info])
                   nil)]
             (if (empty? xs)
@@ -400,17 +410,26 @@ array-table-close = ws %x5D.5D  ; ]] Double right square bracket
           :toml merge-exps
           :true (constantly true)}]
   (defn toml-transfrom
-    "Transform parsed data to Clojure associative structure."
+    "Transform parsed data to Clojure associative structure.
+
+  Example:
+   (toml-transfrom [:toml ...])"
     [tree]
     (when-let [res (insta/transform tm tree)]
       (vary-meta res #(-> % (dissoc ::gll/start-index) (dissoc ::gll/end-index))))))
 
 (defn parse-toml
-  "Parses TOML structure from string into Clojure associative structure."
+  "Parses TOML structure from string into Clojure associative structure.
+
+  Example:
+   (parse-toml \"...\")"
   [input]
-  (->> input
-       (toml-parser)
-       (toml-transfrom)))
+  (let [res (toml-parser input)]
+    (if-not (insta/failure? res)
+      (toml-transfrom res)
+      (let [{:keys [text] :as err} (insta/get-failure res)]
+        (throw (ex-info (str "invalid syntax: '" text "'")
+                        (assoc err :input input)))))))
 
 (def parse-string
   "Alias for `parse-toml`."
