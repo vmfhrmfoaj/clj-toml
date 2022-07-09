@@ -1,7 +1,7 @@
 (ns clj-toml.core
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
-            [instaparse.gll :as gll])
+            [instaparse.gll :as-alias gll])
   (:import java.lang.Character
            java.time.LocalDate
            java.time.LocalDateTime
@@ -265,158 +265,170 @@ array-table-close = ws %x5D.5D  ; ]] Double right square bracket
    (im-data \"...\")"
   (insta/parser toml-grammar :input-format :abnf))
 
-(let [tb-key
-      (fn [arr-info ks]
-        (loop [new-ks []
-               old-ks []
-               ks ks]
-          (let [[k & ks] ks
-                old-ks (conj old-ks k)
-                arr-idx (get-in arr-info (concat old-ks [::idx]))]
-            (if k
-              (recur (cond-> (conj new-ks k)
-                       arr-idx (conj arr-idx))
-                     old-ks
-                     ks)
-              new-ks))))
-      merge-exps
-      (fn [& xs]
-        (loop [res {}
-               md {}
-               tb-ks nil
-               arr-info {}
-               xs xs]
-          (let [[[tag ks val :as x] & xs] xs
-                {:keys [::gll/start-index ::gll/end-index]} (meta x)
-                [res md tb-ks arr-info]
-                (condp = tag
-                  :keyval
-                  , (let [ks (concat tb-ks ks)
-                          kv-md {::start start-index ::end end-index}
-                          val-md (-> (meta val)
-                                     (dissoc ::gll/start-index)
-                                     (dissoc ::gll/end-index))
-                          kv-md (cond-> (merge val-md kv-md)
-                                  (get-in res ks)
-                                  (assoc ::warning (str "replaced a key decleared at "
-                                                        (get-in md (concat ks [::start]))
-                                                        " position")))]
-                      [(assoc-in res ks val)
-                       (assoc-in md ks kv-md)
-                       tb-ks
-                       arr-info])
-                  :std-table
-                  , (let [tb-ks (tb-key arr-info ks)
-                          tb (not-empty (get-in res tb-ks))]
-                      [(assoc-in res tb-ks {})
-                       (assoc-in md tb-ks (cond-> {::start start-index
-                                                   ::end   end-index}
-                                            tb (assoc ::warning (str "replaced a table decleared at "
-                                                                     (get-in md (concat tb-ks [::start]))
-                                                                     " position"))))
-                       tb-ks
-                       arr-info])
-                  :array-table
-                  , (let [initialized? (get-in arr-info ks)
-                          tb-ks (tb-key arr-info ks)
-                          warn-msg (when (and (not initialized?) (not-empty (get-in res tb-ks)))
-                                     (str "replaced a table decleared at "
-                                          (or (get-in md (concat tb-ks [::start]))
-                                              (->> (get-in md tb-ks)
-                                                   (tree-seq map? vals)
-                                                   (filter number?)
-                                                   (apply max)))
-                                          " position"))
-                          arr-info (update-in arr-info ks #(if % {::idx (inc (::idx %))} {::idx 0}))
-                          arr-tb-ks (tb-key arr-info ks)]
-                      [(if initialized?
-                         (assoc-in res arr-tb-ks {})
-                         (assoc-in res (drop-last arr-tb-ks) []))
-                       (assoc-in (cond-> md warn-msg (assoc-in tb-ks {})) arr-tb-ks
-                                 (cond-> {::start start-index
-                                          ::end   end-index}
-                                   warn-msg (assoc ::warning warn-msg)))
-                       arr-tb-ks
-                       arr-info])
-                  nil)]
-            (if (empty? xs)
-              (when res
-                (with-meta res md))
-              (recur res md tb-ks arr-info xs)))))
-      tm {:array (fn [& xs]
-                   (with-meta
-                     (into [] xs)
-                     (->> xs
-                          (map-indexed #(when-let [md (meta %2)]
-                                          (let [{:keys [::gll/start-index ::gll/end-index]} md
-                                                md (cond-> (-> md
-                                                               (dissoc ::gll/start-index)
-                                                               (dissoc ::gll/end-index))
-                                                     start-index (assoc ::start start-index)
-                                                     end-index   (assoc ::end end-index))]
-                                            (vector %1 md))))
-                          (remove nil?)
-                          (into {}))))
-          :basic-string str
-          :bin-int #(Long/parseLong (apply str %&) 2)
-          :dec-int #(Long/parseLong (apply str %&))
-          :dotted-key concat
-          :escaped (fn [x & xs]
-                     (if (and xs (or (= "u" x)
-                                     (= "U" x)))
-                       (-> (apply str xs)
-                           (Integer/parseUnsignedInt 16)
-                           (Character/toString))
-                       (get {"b" "\b"
-                             "f" "\f"
-                             "n" "\n"
-                             "r" "\r"
-                             "t" "\t"}
-                            x x)))
-          :false (constantly false)
-          :float-number #(Double/parseDouble (apply str %&))
-          :hex-int #(Long/parseLong (apply str %&) 16)
-          :inf (constantly ##Inf)
-          :inline-table merge-exps
-          :literal-string str
-          :local-date #(LocalDate/parse (apply str %&))
-          :local-date-time #(LocalDateTime/parse (apply str %&))
-          :local-time #(LocalTime/parse (apply str %&))
-          :ml-basic-string (let [ws? #(or (= " "  %)
-                                          (= "\t" %)
-                                          (= "\r" %)
-                                          (= "\n" %))]
-                             (fn [& xs]
-                               (loop [res nil
-                                      xs (drop-while ws? xs)]
-                                 (let [[line-chars xs] (split-with #(and (not= "\n" %) (not (vector? %))) xs)
-                                       [sep & xs] xs
-                                       [sep xs] (if (vector? sep)
-                                                  [nil (drop-while ws? xs)]
-                                                  [sep xs])
-                                       res (str (apply str res line-chars) sep)]
-                                   (if (empty? xs)
-                                     res
-                                     (recur res xs))))))
-          :ml-literal-string #(str/trim (apply str %&))
-          :nan (constantly ##NaN)
-          :neg-inf (constantly ##-Inf)
-          :newline (constantly "\n")
-          :oct-int #(Long/parseLong (apply str %&) 8)
-          :offset-date-time #(OffsetDateTime/parse (apply str %&))
-          :simple-key #(vector (apply str %&))
-          :string str
-          :time-delim (constantly "T")
-          :toml merge-exps
-          :true (constantly true)}]
-  (defn im-data->map
-    "Transform intermidate data to Clojure associative structure.
+
+(defn- table-keys
+  [arr-info keys]
+  (loop [new-keys []
+         old-keys []
+         [key & keys] keys]
+    (if key
+      (let [old-keys (conj old-keys key)
+            arr-idx (get-in arr-info (concat old-keys [::idx]))
+            new-keys (cond-> (conj new-keys key)
+                       arr-idx (conj arr-idx))]
+        (recur new-keys old-keys keys))
+      new-keys)))
+
+
+(defn- merge-exps
+  [& xs]
+  (loop [[[tag keys val :as x] & xs] xs
+         res {}
+         md  {}
+         tbl-keys nil
+         arr-info {}]
+    (let [{::gll/keys [start-index end-index]} (meta x)
+
+          [res md tbl-keys arr-info]
+          (condp = tag
+            :keyval
+            (let [ks (concat tbl-keys keys)
+                  key-md {::start start-index ::end end-index}
+                  val-md (-> (meta val)
+                             (dissoc ::gll/start-index)
+                             (dissoc ::gll/end-index))
+                  kv-md (cond-> (merge val-md key-md)
+                          (get-in res ks)
+                          (assoc ::warning (str "replaced a key decleared at "
+                                                (get-in md (concat ks [::start]))
+                                                " position")))]
+              [(assoc-in res ks val)
+               (assoc-in md ks kv-md)
+               tbl-keys
+               arr-info])
+
+            :std-table
+            (let [tbl-keys (table-keys arr-info keys)
+                  tbl (not-empty (get-in res tbl-keys))]
+              [(assoc-in res tbl-keys {})
+               (assoc-in md tbl-keys (cond-> {::start start-index
+                                              ::end   end-index}
+                                       tbl (assoc ::warning (str "replaced a table decleared at "
+                                                                 (get-in md (concat tbl-keys [::start]))
+                                                                 " position"))))
+               tbl-keys
+               arr-info])
+
+            :array-table
+            (let [initialized? (get-in arr-info keys)
+                  tbl-keys (table-keys arr-info keys)
+                  warn-msg (when (and (not initialized?) (not-empty (get-in res tbl-keys)))
+                             (str "replaced a table decleared at "
+                                  (or (get-in md (concat tbl-keys [::start]))
+                                      (->> (get-in md tbl-keys)
+                                           (tree-seq map? vals)
+                                           (filter number?)
+                                           (apply max)))
+                                  " position"))
+                  arr-info (update-in arr-info keys #(if % {::idx (inc (::idx %))} {::idx 0}))
+                  arr-tbl-keys (table-keys arr-info keys)]
+              [(if initialized?
+                 (assoc-in res arr-tbl-keys {})
+                 (assoc-in res (drop-last arr-tbl-keys) []))
+               (assoc-in (cond-> md warn-msg (assoc-in tbl-keys {}))
+                         arr-tbl-keys
+                         (cond-> {::start start-index
+                                  ::end   end-index}
+                           warn-msg (assoc ::warning warn-msg)))
+               arr-tbl-keys
+               arr-info])
+
+            nil)]
+      (if (empty? xs)
+        (when res
+          (with-meta res md))
+        (recur xs res md tbl-keys arr-info)))))
+
+
+(def ^:private converter
+  {:array (fn [& xs]
+            (with-meta
+              (into [] xs)
+              (->> xs
+                   (map-indexed #(when-let [md (meta %2)]
+                                   (let [{:keys [::gll/start-index ::gll/end-index]} md
+                                         md (cond-> (-> md
+                                                        (dissoc ::gll/start-index)
+                                                        (dissoc ::gll/end-index))
+                                              start-index (assoc ::start start-index)
+                                              end-index   (assoc ::end end-index))]
+                                     (vector %1 md))))
+                   (remove nil?)
+                   (into {}))))
+
+   :basic-string str
+   :bin-int #(Long/parseLong (apply str %&) 2)
+   :dec-int #(Long/parseLong (apply str %&))
+   :dotted-key concat
+   :escaped (fn [x & xs]
+              (if (and xs (or (= "u" x)
+                              (= "U" x)))
+                (-> (apply str xs)
+                    (Integer/parseUnsignedInt 16)
+                    (Character/toString))
+                (get {"b" "\b"
+                      "f" "\f"
+                      "n" "\n"
+                      "r" "\r"
+                      "t" "\t"}
+                     x x)))
+   :false (constantly false)
+   :float-number #(Double/parseDouble (apply str %&))
+   :hex-int #(Long/parseLong (apply str %&) 16)
+   :inf (constantly ##Inf)
+   :inline-table merge-exps
+   :literal-string str
+   :local-date #(LocalDate/parse (apply str %&))
+   :local-date-time #(LocalDateTime/parse (apply str %&))
+   :local-time #(LocalTime/parse (apply str %&))
+   :ml-basic-string (let [ws? #(or (= " "  %)
+                                   (= "\t" %)
+                                   (= "\r" %)
+                                   (= "\n" %))]
+                      (fn [& xs]
+                        (loop [res nil
+                               xs (drop-while ws? xs)]
+                          (let [[line-chars xs] (split-with #(and (not= "\n" %) (not (vector? %))) xs)
+                                [sep & xs] xs
+                                [sep xs] (if (vector? sep)
+                                           [nil (drop-while ws? xs)]
+                                           [sep xs])
+                                res (str (apply str res line-chars) sep)]
+                            (if (empty? xs)
+                              res
+                              (recur res xs))))))
+   :ml-literal-string #(str/trim (apply str %&))
+   :nan (constantly ##NaN)
+   :neg-inf (constantly ##-Inf)
+   :newline (constantly "\n")
+   :oct-int #(Long/parseLong (apply str %&) 8)
+   :offset-date-time #(OffsetDateTime/parse (apply str %&))
+   :simple-key #(vector (apply str %&))
+   :string str
+   :time-delim (constantly "T")
+   :toml merge-exps
+   :true (constantly true)})
+
+
+(defn im-data->map
+  "Transform intermidate data to Clojure associative structure.
 
   Example:
    (im-data->map [:toml ...])"
-    [tree]
-    (when-let [res (insta/transform tm tree)]
-      (vary-meta res #(-> % (dissoc ::gll/start-index) (dissoc ::gll/end-index))))))
+  [tree]
+  (when-let [res (insta/transform converter tree)]
+    (vary-meta res #(-> % (dissoc ::gll/start-index) (dissoc ::gll/end-index)))))
+
 
 (defn parse-toml
   "Parses TOML structure from string into Clojure associative structure.
@@ -430,6 +442,7 @@ array-table-close = ws %x5D.5D  ; ]] Double right square bracket
       (let [{:keys [text] :as err} (insta/get-failure res)]
         (throw (ex-info (str "invalid syntax: '" text "'")
                         (assoc err :input input)))))))
+
 
 (def parse-string
   "Alias for `parse-toml`."

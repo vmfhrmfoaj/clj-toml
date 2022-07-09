@@ -7,7 +7,7 @@
 
   :source-paths ["src"]
 
-  :dependencies [[org.clojure/clojure "1.10.3"]
+  :dependencies [[org.clojure/clojure "1.11.0"]
                  [instaparse "1.4.10"]]
 
   :profiles
