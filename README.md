@@ -1,3 +1,5 @@
+[![Clojars Project](https://img.shields.io/clojars/v/com.github.vmfhrmfoaj/clj-toml.svg)](https://clojars.org/com.github.vmfhrmfoaj/clj-toml)
+
 # clj-toml
 
 `clj-toml` is [TOML](https://toml.io) for Clojure.
@@ -11,8 +13,6 @@ Instaparse does all the heavy lifting, we're just sitting pretty.
 
 
 ## Usage
-
-[![Clojars Project](https://img.shields.io/clojars/v/com.github.vmfhrmfoaj/clj-toml.svg)](https://clojars.org/com.github.vmfhrmfoaj/clj-toml)
 
 Add the following line to your leiningen dependencies:
 ```clojure
