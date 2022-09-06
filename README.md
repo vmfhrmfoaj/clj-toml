@@ -51,6 +51,10 @@ bar=[1,2,3]")
 ;;=> "[Foo]" 
 ```
 
+#### Use cases
+
+- [event-handler](https://gitlab.com/vmfhrmfoaj/event-handler/-/blob/main/src/event_handler/config.clj)
+
 
 ### Version
 
