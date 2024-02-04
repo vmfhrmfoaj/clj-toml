@@ -1,3 +1,7 @@
+Please use toml-clj](https://github.com/tonsky/toml-clj).
+
+---
+
 [![Clojars Project](https://img.shields.io/clojars/v/com.github.vmfhrmfoaj/clj-toml.svg)](https://clojars.org/com.github.vmfhrmfoaj/clj-toml)
 
 # clj-toml
@@ -10,8 +14,6 @@ TOML is Tom's Obvious, Minimal Language.
 `clj-toml` uses [Instaparse](https://github.com/Engelberg/instaparse) for parsing.
 Instaparse does all the heavy lifting, we're just sitting pretty.  
 `clj-toml` support TOML [v1.0.0](https://toml.io/en/v1.0.0).
-
-If you don't use metadata(i.e. location), [toml-clj](https://github.com/tonsky/toml-clj) is better choice.
 
 
 ## Usage
